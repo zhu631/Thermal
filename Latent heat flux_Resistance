@@ -1,0 +1,66 @@
+@author: zhu631
+"""
+import numpy as np
+import MO_similarity as MO
+from MO_similarity import *
+import cv2
+k = 0.4
+Us = 0.1
+def calc_R_A(z_T, u, L, d_0, z_0H,zoL,z_0M,T_C,size,T_A_K):
+    ''' Estimates the aerodynamic resistance to heat transport based on the
+    MO similarity theory.
+
+    Parameters
+    ----------
+    z_T : float
+        air temperature measurement height (m).
+    u : float
+        wind velocity (m s-1).
+    L : float
+        Monin Obukhov Length for stability
+    d_0 : float
+        zero-plane displacement height (m).
+    zoL : float
+        stability coefficient (unitless).
+    z_0H : float
+        aerodynamic roughness length for heat trasport (m).
+
+    Returns
+    -------
+    R_A : float
+        aerodyamic resistance to heat transport in the surface layer (s m-1).
+
+    References
+    ----------
+    .. [Norman1995] J.M. Norman, W.P. Kustas, K.S. Humes, Source approach for estimating
+        soil and vegetation energy fluxes in observations of directional radiometric
+        surface temperature, Agricultural and Forest Meteorology, Volume 77, Issues 3-4,
+        Pages 263-293, http://dx.doi.org/10.1016/0168-1923(95)02265-Y.
+    '''
+
+    # Convert input scalars to numpy arrays
+    z_T, u, L, d_0, z_0H = map(np.asarray, (z_T, u, L, d_0, z_0H))
+    R_A_logM = np.asarray(np.log((z_T - d_0) / z_0M))
+    R_A_logH = np.asarray(np.log((z_T - d_0) / z_0H))
+    # if L -> infinity, z./L-> 0 and there is neutral atmospheric stability
+    # other atmospheric conditions
+    L[L == 0] = 1e-36
+    #img1 = cv2.imread(name2[i],-1)
+    #size = np.array(img1.shape)
+    Psi_H = MO.calc_Psi_H(zoL,T_C,size,T_A_K)
+    Psi_M = MO.calc_Psi_M(zoL,T_C,size,T_A_K)
+
+    #i = np.logical_and(z_star>0, z_T<=z_star)
+    #Psi_H_star[i] = MO.calc_Psi_H_star(z_T[i], L[i], d_0[i], z_0H[i], z_star[i])
+
+    #i = ustar != 0
+    #R_A = np.asarray(np.ones(ustar.shape) * float('inf'))
+    Psi_M = np.asarray(Psi_M)
+    R_A = (R_A_logH - Psi_H)*(R_A_logM - Psi_M) / (u * 0.16)
+    return np.asarray(R_A)
+
+def calc_R_S(Us):
+    R_S = 1/(0.004+0.012*Us) 
+    
+    """ Us is the wind speed in m s-1 at a height above the soil surface where the effect of the soil
+    surface roughness is minimal typically 0.05 to 0.2 m"""

@@ -1,0 +1,522 @@
+@author: zhu631
+"""
+
+import numpy as np
+#from FourSAIL import FourSAIL
+from sympy import *
+import importlib
+from spectral import *
+#met = input('meteo_utils')
+#importlib.import_module(met)☺
+import meteo_utils as met
+import resistance_calc as res
+import MO_similarity as MO
+import net_radiation as rad
+from PIL import Image
+from mpmath import *
+import cv2
+import matplotlib.pyplot as plt
+from skimage import data
+#from skimage.filters import threshold_otsu, threshold_adaptive
+import numpy.ma as ma
+import math
+import itertools
+import pylab
+from numpy import inf
+from scipy.stats import gaussian_kde
+import matplotlib.colors as clr
+import glob
+# Stephan Boltzmann constant (W m-2 K-4)
+#img1 = cv2.imread('thermal_C_Range1Row1.tif',-1)
+#size = np.array(img1.shape)
+sb = 5.670373e-8
+h = 1.7        # Porometry measurement height
+""" aerodynamic roughness length for momentum transport 
+(0.05-0.1 for short crops and 0.1-0.2 for tall crops) (m)"""
+z_0 = 0.15      
+d_0 = 0.65*h   # Displacement height○
+z_0M = 0.125*h  #♦ roughness length for momentum
+z_0H = 0.018*h
+u = 4 #u : floatWind speed above the canopy (m s-1).
+
+T_A_K = 302.05 # Air temperature (Kelvin)
+ea = 17.5# Water vapour pressure above the canopy (mb).
+p = 995.3 #Atmospheric pressure (mb), use 1013 mb by default.
+z_u = z_T = 3 # Height of measurement of windspeed and temperature (m)
+LAI = 3.6
+"""height above the soil surface where the effect of the soil surface roughness 
+is minimal usually 0.05m to 0.2m"""
+Us = 0.19
+'''table 15.1 An introduction to environment. Sorghum:1.43;soybean:0.81;maize:1.37'''
+x_LAD = 1.37
+
+S_dn = 743.65
+sza = 34.58
+
+"""
+
+    References♠
+    ----------name[k]%s'%str(sharpened)
+    [Kustas1997] Kustas, W. P., and J. M. Norman (1997), A two-source approach for estimating
+    turbulent fluxes using multiple angle thermal infrared observations,
+    Water Resour. Res., 33(6), 1495-1508,
+    http://dx.doi.org/10.1029/97WR00704."""
+
+z_u = 3
+
+    #u, z_u, d_0, z_0 = map(np.asarray, (u, z_u, d_0, z_0))
+k = 0.4
+    # calculate correction factors in other conditions
+
+    #u_star = u * k / (np.log((z_u - d_0) / z_0)
+ustar = MO.calc_u_star(u, z_u, d_0, z_0)  # friction velocity
+
+
+rho_a = met.calc_rho(p, ea, T_A_K)  # Air density
+c_p = met.calc_c_p(p, ea)  # Heat capacity of air
+H = Symbol('H')
+
+    # And the net longwave radiation
+emisGrd = 0.94  # Broadband emissivity of soil
+emisVeg = 0.98  # Broadband emissivity of vegetation cover
+emisSky = rad.calc_emiss_atm(ea, T_A_K)  # Atmospheric emissivity
+    #Ln_C, Ln_S = rad.calc_L_n_Kustas(T_C, T_S, L_dn, LAI, emis_C, emis_S)
+
+    #pix_array2.resize((3300,1))
+
+#img = envi.open('20200714_f54n_rgb_splot_class.hdr')
+
+#print (img)
+
+
+
+#b = img[:,:,0]
+
+#d = b.reshape(size[0], size[1])
+" class 1 crops and 2 and 3 for soil true for crops and false for soil"
+#mk = 1 >= d
+
+#pix_array1 = np.array(img1)
+
+#pixel_values = np.reshape(pix_array1,(size[0], size[1]))
+    
+#img4 = Image.fromarray(pixel_values)
+
+#img3 = np.array(img4)
+
+#block_size = 21
+# regional thresnholding method to classify soils and plants
+#binary_adaptive1 = threshold_adaptive(img3, block_size, method='gaussian', offset=0)
+
+#plt.imshow(y)
+
+#plt.savefig('result_whole0808.tif')
+'soil temperatures left and take canopy temperatures out'
+
+# canopy left and take false out
+
+#y = ma.array(img1)
+''' ~ serves the purpose of fliping ture and false in the original array
+and convert pixels values to temperature'''
+difvis,difnir,fvis,fnir,S_dn_dir,S_dn_dif = rad.calc_difuse_ratio(S_dn, sza, press=1013.25, SOLAR_CONSTANT=1320)
+
+# Broadband leaf bihemispherical reflectance in the visible region (400-700nm)
+rho_leaf_vis = 0.15
+# Broadband leaf bihemispherical transmittance in the visible region (400-700nm)
+tau_leaf_vis = 0.20
+#Broadband leaf bihemispherical reflectance in the NIR region (700-2500nm).
+rho_leaf_nir = 0.20
+#Broadband leaf bihemispherical transmittance in the NIR region (700-2500nm)
+tau_leaf_nir = 0.50
+#Broadband soil bihemispherical reflectance in the visible region (400-700nm)
+rsoilv = 0.05
+#Broadband soil bihemispherical reflectance in the NIR region (700-2500nm)
+rsoiln = 0.1
+
+Sn_C, Sn_S = rad.calc_Sn_Campbell(LAI, sza, S_dn_dir, S_dn_dif, fvis, fnir, rho_leaf_vis,
+                   tau_leaf_vis, rho_leaf_nir, tau_leaf_nir, rsoilv, rsoiln,
+                   x_LAD=1.37, LAI_eff=None)
+
+name2 = np.array(sorted(glob.glob('U:/Chapter 3/20200714/*.tif')))
+
+for i in range(len(glob.glob('U:/Chapter 3/20200714/*.tif'))):
+    img1 = cv2.imread(name2[i],-1)
+    size = np.array(img1.shape)
+    Zero = np.zeros((size[0], size[1]))
+    #img1 = Image.open(name1[i]) 
+    #pix_vals = list(img1.getdata())
+    #pix_array1 = np.array(pix_vals)
+    #for k in range(327680):
+        #pixel_val = pix_array1[k]
+    
+    #pixel1.append(pix_array1)
+
+#all_pixel1 = np.array(pixel1)
+
+
+    y = ma.array(img1)*0.0489-61.407+0.7
+    T_C = ma.filled(y,fill_value=0)
+    T_C_NZ = T_C[np.nonzero(T_C)]
+
+    mean1 = np.mean(T_C_NZ)
+    std1 = np.std(T_C_NZ)
+    upper1 = mean1+3*std1
+    lower1 = mean1-3*std1
+    T_C[T_C > upper1] = 0
+    T_C[T_C < lower1] = 0
+
+    mk1 = 1 >= T_C  # canopy t is false
+# calculate the longwave radiation emitted by canopy and soil
+    Ln_C, Ln_S = rad.calc_L_n_Kustas(T_C, T_S, T_A_K, LAI, emisVeg, emisGrd,emisSky, x_LAD,)
+    Sn_C = ma.array(Zero + Sn_C)
+    Sn_C_M = ma.array(Sn_C, mask=mk1)
+    Sn_C = ma.filled(Sn_C_M,fill_value=0)
+    Rn_C = Sn_C + Ln_C
+    Rn_C[Rn_C < 0] = 0
+    #Rn = Rn_S + Rn_C
+    #G = 0.35 * Rn_S # Compute Soil Heat Flux
+    L = MO.calc_L(ustar, T_A_K, rho_a, c_p, H)  # Monin-Obukhov length
+    zoL = (h-d_0)/L  # stability coefficient
+    R_A = res.calc_R_A(z_T, u, L, d_0, z_0H,zoL,z_0M) # areodynamic resistance calculations unit s/m
+    R_S = 192.3077  # unit s/m
+
+
+    H_S_C = []
+
+
+    f1 = []
+    for tc,r in zip(T_C,R_A):
+        f = H - rho_a * c_p * (tc - T_A_K) / r 
+        f1.append(f)
+    f2 = np.array(f1)
+#for i, m in itertools.product (range(len(T_C)),range(len(T_C[0]))):
+    for i in range(len(T_C)):               #i = len(T_C) # number of row    
+        for m in range(len(T_C[0])):  #m =  len(T_C[0]) # number of column
+            if T_C[i,m] > 0:
+            #def f(H):
+               #return H - rho_a * c_p * (T_C[i,m] - T_A_K) / R_A[i,m] # Definition of canopy sensible heat flux            
+            
+                H1 = np.array(nsolve(f2[i,m],100, verify=False)) # 400 is the inital estimated value
+            else:
+                H1 =  0 
+            H_S_C.append(H1)
+    H_S1 = np.reshape(H_S_C,(size[0], size[1])) # create array shape consistent with input image
+    H_S11 = np.array(H_S1,dtype = float)
+#H_S11[H_S11 < 0] = 0 # Negative is not possible
+    LE_C = Rn_C - H_S11 # Calculate latent heat flux for canopy
+    LE_C[LE_C < 0] = 0
+    H_S11 = Rn_C - LE_C # Recalculate canopy sensible heat flux
+#H_S11[H_S11 < 0] = 0
+    R_A_C = rho_a * c_p * (T_C - T_A_K)/H_S11
+    R_A_C[R_A_C == -inf] = 0
+    R_A_C[R_A_C == inf] = 0
+    LE_map_C = Image.fromarray(LE_C)
+    
+    #LE_map_C.save('LE_Map20200714f54N_Sorghum.tif')
+    LE_map_C.save('LE_C_'+name2[i][32:42]+'.tif')
+    cmap = clr.LinearSegmentedColormap.from_list('custom blue', ['#543005','#8c510a','#bf812d','#dfc27d','#80cdc1','#35978f','#01665e','#003c30'], N=256)
+    LE_C1 = LE_C
+    LE_C1[LE_C1 ==0]='nan'
+    imgplot2 = plt.imshow(LE_C1,cmap,interpolation='none',extent=[0,5.8,0, 5])
+    plt.locator_params(axis='y', nbins=5)
+    plt.locator_params(axis='x', nbins=6)
+    cbar2 =plt.colorbar()
+    plt.ticklabel_format(useOffset=False)
+    cbar2.ax.set_xlabel('LE (W/$m^2$)', rotation=0,fontsize=14,fontdict=dict())
+    cbar2.ax.xaxis.set_label_coords(1.9, 1.1)
+    plt. clim(0,800)
+    label_x = 7.5
+    label_y = 2
+    arrow_x = 7.5
+    arrow_y = 3
+
+    arrow_properties = dict(
+            facecolor="black", width=0.5,
+            headwidth=4, shrink=0.1)
+
+    plt.annotate(
+            "North", xy=(arrow_x, arrow_y),
+            xytext=(label_x, label_y),arrowprops=dict(facecolor='black',shrink=0.1),horizontalalignment="center",annotation_clip=False)
+
+    plt.xlabel('(m)', fontsize=12)
+    plt.ylabel('(m)', fontsize=12)
+
+    #plt.savefig('LE_C_20200714N_map.png', bbox_inches="tight", dpi=400)
+    plt.savefig('LE_C_Map_'+name2[1][32:42]+'.png', bbox_inches="tight", dpi=400)
+
+
+
+    cmap = clr.LinearSegmentedColormap.from_list('custom blue', ['#003c30','#01665e','#35978f','#80cdc1','#dfc27d','#bf812d','#8c510a','#543005'], N=256)
+#LE_C1 = LE_C
+#LE_C1[LE_C1 ==0]='nan'
+
+    BR = H_S11/LE_C1
+    
+    BR[BR < 0] = 0
+    BR_map_C = Image.fromarray(BR)
+    
+    BR_map_C.save('BR_C_'+name2[1][32:42]+'.tif')
+
+    imgplot2 = plt.imshow(BR,cmap,interpolation='none',extent=[0,5.8,0, 5])
+#plt.style.use('classic')
+    plt.locator_params(axis='y', nbins=5)
+    plt.locator_params(axis='x', nbins=6)
+    cbar2 =plt.colorbar()
+    plt.ticklabel_format(useOffset=False)
+    cbar2.ax.set_xlabel('Bowen Ratio', rotation=0,fontsize=14,fontdict=dict())
+#cbar.set_ticks([mn,md,mx])
+#cbar.set_ticklabels([mn,md,mx])
+    cbar2.ax.xaxis.set_label_coords(1.9, 1.1)
+    plt. clim(0,1)
+
+
+    label_x = 7.5
+    label_y = 2
+    arrow_x = 7.5
+    arrow_y = 3
+
+    arrow_properties = dict(
+            facecolor="black", width=0.5,
+            headwidth=4, shrink=0.1)
+
+    plt.annotate(
+            "North", xy=(arrow_x, arrow_y),
+            xytext=(label_x, label_y),arrowprops=dict(facecolor='black',shrink=0.1),horizontalalignment="center",annotation_clip=False)
+
+    plt.xlabel('(m)', fontsize=12)
+    plt.ylabel('(m)', fontsize=12)
+    plt.savefig('BR_C_Map'+name2[1][32:42]+'.png', bbox_inches="tight", dpi=400)
+#img1 = Image.open('ThermalPlot10290.tif') 
+"""
+H_S_S = []
+f3 = []
+for ts,r in zip(T_S,R_A):
+    f = H - rho_a * c_p * (ts - T_A_K) / (r + R_S)
+    f3.append(f)
+f4 = np.array(f3)
+for i in range(len(T_S)):
+    for m in range(len(T_S[0])):
+#for i, m in itertools.product (range(len(T_S)),range(len(T_S[0]))):
+        if T_S[i,m] > 0:
+        #def F(H):
+                # Definition of soil sensible heat flux
+            #return H - rho_a * c_p * (T_S[i,m] - T_A_K) / (R_A[i,m] + R_S)
+            H2 = np.array(nsolve(f4[i,m],200))
+        else:
+            H2 = 0 
+        H_S_S.append(H2)
+H_S2 = np.reshape(H_S_S,(size[0], size[1]))
+H_S21 = np.array(H_S2,dtype = float)
+#H_S21[H_S21 < 0] = 0
+LE_S = Rn_S - H_S21 - G
+LE_S[LE_S < 0] = 0
+
+H_S21 = Rn_S - LE_S - G
+#H_S21[H_S21 < 0] = 0
+
+# Creating Sensible heat flux map by combining soil and canopy sensible heat 
+H_map = Image.fromarray(H_S11+H_S21)
+    
+H_map.save('H_Map20200714f54N_CORN1.tif')
+# Creating latent heat flux map by combining soil and canopy latent heat
+LE_map = Image.fromarray(LE_C+LE_S)
+    
+LE_map.save('LE_Map20200714f54N_CORN1.tif')
+"""
+
+
+"""
+
+    imgplot1 = plt.imshow(img1,cmap='gray')
+#plt.style.use('classic')
+    cbar2 =plt.colorbar()
+    cbar2.ax.set_xlabel('DN', rotation=0,fontsize=14,fontdict=dict(weight='bold'))
+    cbar2.ax.xaxis.set_label_coords(1.4, 1.1)
+#plt.close()
+
+    img2 = cv2.imread('H_Map20200714f54N_CORN1.tif',-1)
+    imgplot2 = plt.imshow(img2,cmap='YlOrRd')
+#plt.style.use('classic')
+    cbar2 =plt.colorbar()
+    cbar2.ax.set_xlabel('H (W/$m^2$)', rotation=0,fontsize=14,fontdict=dict(weight='bold'))
+    cbar2.ax.xaxis.set_label_coords(1.4, 1.1)
+#plt.close()
+"""
+"""
+    LE_C_NZ = LE_C[np.nonzero(LE_C)]
+    max = np.amax(LE_C_NZ)
+    min = np.amin(LE_C_NZ)
+    density1 = gaussian_kde(LE_C_NZ)
+    xs1 = np.linspace(min,max,100)
+#LE_S_NZ = LE_S[np.nonzero(LE_S)]
+#max1 = np.amax(LE_S_NZ)200714M↕
+#min1 = np.amin(LE_S_NZ)
+#density2 = gaussian_kde(LE_S_NZ)
+#xs2 = np.linspace(min1,max1,100)
+    kde1, = plt.plot(xs1,density1.evaluate(xs1))
+
+    plt.margins(y=0)
+
+    plt.margins(x=0)
+#kde2, = plt.plot(xs2,density2.evaluate(xs2))
+    major_ticks = np.arange(min,max, 100)
+
+    major_ticks = np.arange(int(min)-2,int(max)+8, 50)
+#minor_locator = AutoMinorLocator(5)
+    plt.xticks(major_ticks,fontsize=10)
+
+    plt.ylim(0,0.008)
+#plt.axes().xaxis.set_minor_locator(minor_locator)
+#plt.xlim([int((max2+max1)/2-8), int((max2+max1)/2+8)])
+    plt.yticks(fontsize=10)
+    #plt.title('Temperature Distribution(KDE)' ,fontsize=16)
+    plt.xlabel('LE (W/$m^2$)', fontsize=12)
+    plt.ylabel('Probability Density', fontsize=12)
+    plt.legend([kde1], ['LE_Crop'],loc=0,prop={'size': 10})
+    plt.savefig('LE_C_20200714N.png', dpi=400)
+
+"""
+
+
+"""
+#plt.imshow(binary_adaptive2)
+H_C_NZ = H_S11[np.nonzero(H_S11)]
+max2 = np.amax(H_C_NZ)
+min2 = np.amin(H_C_NZ)
+density3 = gaussian_kde(H_C_NZ)
+xs3 = np.linspace(min2,max2,100)
+H_S_NZ = H_S21[np.nonzero(H_S21)]
+max3 = np.amax(H_S_NZ)
+min3 = np.amin(H_S_NZ)
+density4 = gaussian_kde(H_S_NZ)
+xs4 = np.linspace(min3,max3,100)
+kde3, = plt.plot(xs3,density3.evaluate(xs3))
+kde4, = plt.plot(xs4,density4.evaluate(xs4))
+major_ticks = np.arange(int(np.amin((min2,min3)))-50,int(np.amax((max2,max3)))+50 , 50)
+#minor_locator = AutoMinorLocator(5)
+plt.xticks(major_ticks,fontsize=12)
+#plt.axes().xaxis.set_minor_locator(minor_locator)
+#plt.xlim([int((max2+max1)/2-8), int((max2+max1)/2+8)])
+plt.yticks(fontsize=12)
+    #plt.title('Temperature Distribution(KDE)' ,fontsize=16)
+plt.xlabel('H (W/$m^2$)', fontsize=14)
+plt.ylabel('Probability Density', fontsize=14)
+plt.legend([kde3, kde4], ['H_C', 'H_S'],loc=0,prop={'size': 12})
+"""
+#plt.imshow(binary_adaptive2)
+#plt.savefig('result_p.tif')
+#else:
+    
+        #H_S[i] = rho_a[i] * Cp[i] * (T_S[i] - T_A) / (R_A[i]+ R_S)
+        #solve (H_S[i] - rho_a[i] * Cp[i] * (T_S[i] - T_A) / (R_A[i]+R_S),H_S[i])
+        #LE_S = Rn_S - H_S- G
+        # Assume no condensation in the canopy (LE_C<0)
+        
+
+        # Calculate soil sensible heat flux (Norman et al 1995)
+       
+       
+
+        # Evaporation Rate (Kustas and Norman 1999)
+        #H = np.asarray(H_S + H_C)
+        #LE = np.asarray(Rn - G - H)
+
+
+    # Compute soil and canopy latent heat fluxes
+       # LE_S = Rn_S - G - H_S
+        #LE_C = Rn_C - H_C
+
+        #(flag, T_AC, Ln_S, Ln_C, LE_C, H_C, LE_S, H_S, G, R_S, R_x, R_A, u_friction, L,
+         #n_iterations) = map(np.asarray, (flag, T_AC, Ln_S, Ln_C, LE_C, H_C, LE_S, H_S,
+                                      #G, R_S, R_x, R_A, u_friction, L, iterations))
+
+#return flag, T_AC, Ln_S, Ln_C, LE_C, H_C, LE_S, H_S, G, R_S, R_x, R_A, u_friction, L, n_iterations
+
+"""
+T_C_NZ = T_C[np.nonzero(T_C)]-273.15
+T_S_NZ = T_S[np.nonzero(T_S)]-273.15
+max4 = np.amax(T_C_NZ)
+min4 = np.amin(T_C_NZ)
+max5 = np.amax(T_S_NZ)
+min5 = np.amin(T_S_NZ)
+density5 = gaussian_kde(T_C_NZ)
+density6 = gaussian_kde(T_S_NZ)
+xs5 = np.linspace(min4,max4,100)
+
+xs6 = np.linspace(min5,max5,100)
+
+#LE_S_NZ = LE_S[np.nonzero(LE_S)]
+#max1 = np.amax(LE_S_NZ)
+#min1 = np.amin(LE_S_NZ)
+#density2 = gaussian_kde(LE_S_NZ)
+
+
+#xs2 = np.linspace(min1,max1,100)
+kde5, = plt.plot(xs5,density5.evaluate(xs5))
+kde6, = plt.plot(xs6,density6.evaluate(xs6))
+#kde2, = plt.plot(xs2,density2.evaluate(xs2))
+major_ticks = np.arange(int(np.amin((min4,min5)))-5,int(np.amax((max4,max5)))+5 , 2)
+
+#minor_locator = AutoMinorLocator(5)
+plt.xticks(major_ticks,fontsize=10)
+#plt.axes().xaxis.set_minor_locator(minor_locator)
+#plt.xlim([int((max2+max1)/2-8), int((max2+max1)/2+8)])
+plt.margins(y=0)
+plt.ylim(0,0.6)
+
+plt.yticks(fontsize=10)
+    #plt.title('Temperature Distribution(KDE)' ,fontsize=16)
+plt.xlabel('Temperature ($^\circ$C )', fontsize=12)
+plt.ylabel('Probability Density', fontsize=12)
+plt.legend([kde5,kde6], ['T_C','T_S'],loc=0,prop={'size': 10})
+plt.savefig('T_C_S_20200714N.png', dpi=400)
+"""
+    
+#plt.style.use('classic')
+    
+
+
+    
+'''Combine tow arrays into a singe array with 
+net radiation information for soil and canopy'''
+
+''' short wave incoming radiation from Eppley spreadsheet (w/m2)'''
+
+'''Solar Zenith Angle (degrees) calculated from ♠ 
+for 9D lat: 40,28,15; Long: 86,59,41. Offset +5, Daylight saving yes
+for F54N lat: 40,28,45; Long: 86,59,24. Offset +5, Daylight saving yes '''
+
+
+'''Fraction of difuse8 shortwave radiation.
+Partitions the incoming solar radiation into PAR and non-PR and
+diffuse and direct beam component of the solar spectrum.'''   
+
+
+''' Net shortwave radiation
+Estimate net shorwave radiation for soil and canopy below a canopy using the [Campbell1998]_
+Radiative Transfer Model, and implemented in [Kustas1999]_'''
+
+# Array creation for Sn_S
+    #Sn_S = ma.array(Zero + Sn_S)
+# Mask the canopy pixels out from the above array and fill them out with 0
+    #Sn_S_M = ma.array(Sn_S, mask=~mk1)
+    #Sn_S = ma.filled(Sn_S_M,fill_value=0)
+# Net radiation for soil
+    #Rn_S = Sn_S + Ln_S
+# Negative is not possible
+    #Rn_S[Rn_S < 0] = 0
+#######################%### Net radiation for canopy#################################
+
+
+#img2 = cv2.imread('ThermalPlot10290.tif',-1)
+#pix_array2 = np.array(img2)
+    #pix_array2.resize((3300,1))
+#T_C = pix_array2*0.04
+#H = rho_a * c_p * (T_C - T_A_K) / R_A
+        # solve for H_C
+#def f(H):
+    #return H - rho_a * c_p * (T_C[1,1] - T_A_K) / R_A
+    
+#findroot(f,(100))
+#jjj = H - rho_a * c_p * (T_C[1,1] - T_A_K) / R_A
+#f = [lambda H: H - rho_a * c_p * (T_C[1,1] - T_A_K) / R_A]

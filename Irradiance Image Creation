@@ -1,0 +1,22 @@
+import sys
+sys.path.append("U:/M1/Images")
+import IrradianceCalculation as irc
+import ThermalCameraCalibration as tcc
+from PIL import Image
+import os
+import numpy as np
+import glob
+import pandas as pd
+from scipy import stats
+name2 = np.array(sorted(glob.glob('U:/M3/Images/*.jpg')))
+for k in range(len(glob.glob('U:/M3/Images/*.jpg'))):
+    img2 = Image.open(name2[k]) 
+    pix_vals1 = np.array((img2.getdata(0)))
+    
+    my_data = 3.9044*pix_vals1+ 7118  # convert pixel values of jpg to TIFF
+    my_data1 = (my_data-tcc.intercept_all)/tcc.slope_all
+    pixel_values = np.reshape(my_data1,(512, 640))
+    
+    img = Image.fromarray(pixel_values)
+    
+    img.save('2017_Time%d.tif' % k)

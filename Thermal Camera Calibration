@@ -1,0 +1,94 @@
+@author: zhu631
+"""
+import sys
+sys.path.append("U:/M1/Images")
+import IrradianceCalculation as irc
+from PIL import Image
+import numpy as np
+import glob
+from scipy import stats
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+
+path1 = 'U:/M1/Images'
+# get the name of the file in the folder
+name1 = np.array(sorted(glob.glob('U:/M1/Images/*.tiff')))
+# create an empty array for storing data
+pixel1 = []
+#pixel2 = []
+# get an array for pixel values of all the images
+for i in range(len(glob.glob('U:/M1/Images/*.tiff'))):
+    img1 = Image.open(name1[i]) 
+    pix_vals = list(img1.getdata())
+    pix_array1 = np.array(pix_vals)
+    #for k in range(327680):
+        #pixel_val = pix_array1[k]
+    
+    pixel1.append(pix_array1)
+
+all_pixel1 = np.array(pixel1)
+# Convert DN in TIFF to Real Temperature
+#all_pixel2 = 0.0405*all_pixel1-277.39
+#for m in range(327680):
+    #for n in range(len(glob.glob('U:/M1/Images/*.tiff'))):
+        #pix_val = all_pixel1[n][m]
+        #pix_array2 = np.array(pix_val)
+        #pixel2.append(pix_array2)
+#pixel_by_position = np.array(pixel2)
+# create an empty array to store slope, r and intercept values calculated from the loop
+slope_all = []
+r_value_all = []
+intercept_all = []
+uncertainty_all = []
+emissity = 0.98
+for m in range(327680):
+    pix_val = all_pixel1[:,m]
+    slope, intercept, r_value, p_value, std_err = stats.linregress(0.96*irc.irradiance,pix_val)
+    var = (slope*0.96*irc.irradiance+intercept-pix_val)**2
+    uncertainty = np.sum(var)/(len(glob.glob('U:/M1/Images/*.tiff'))-1)
+    slope_all.append(slope)
+    r_value_all.append(r_value)
+    intercept_all.append(intercept)
+    uncertainty_all.append(uncertainty)
+    
+pixel_values3 = np.reshape(slope_all,(512, 640))
+pixel_values4 = np.reshape(intercept_all,(512, 640))
+pixel_values5 = np.reshape(r_value_all,(512, 640))
+pixel_values6 = np.reshape(uncertainty_all,(512, 640))
+imgplot = plt.imshow(pixel_values3)
+
+cbar = plt.colorbar()
+cbar.ax.set_xlabel('Slope ($m^2$$sr$/$W$)', rotation=0,fontdict=dict(),fontsize=14)
+cbar.ax.xaxis.set_label_coords(1.4, 1.1)
+
+plt.savefig('slope.png', dpi=400)
+
+
+imgplot1 = plt.imshow(pixel_values4)
+cbar1 = plt.colorbar()
+cbar1.ax.set_xlabel('Intercept ($DN$)', rotation=0,fontdict=dict(),fontsize=14)
+cbar1.ax.xaxis.set_label_coords(1.4, 1.1)
+
+plt.savefig('Intercept.png', dpi=400)
+
+imgplot2 = plt.imshow(pixel_values5)
+cbar2 =plt.colorbar()
+cbar2.ax.set_xlabel('R-squared', rotation=0,fontsize=14,fontdict=dict(weight='bold'))
+cbar2.ax.xaxis.set_label_coords(1.4, 1.1)
+
+img4 = Image.fromarray(pixel_values3)
+img5 = Image.fromarray(pixel_values4)
+img6 = Image.fromarray(pixel_values5)
+img7 = Image.fromarray(pixel_values6)
+img4.save('slopes1.tif')
+img5.save('intercepts1.tif')
+img6.save('r_values1.tif')
+img7.save('uncertainty1.tif')
+
+error_bounds = 3*np.power(uncertainty_all, 0.5)
+average_uncertainty = np.sum(uncertainty_all)/327680
+    
+
+
+
+    

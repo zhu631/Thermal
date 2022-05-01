@@ -53,30 +53,12 @@ x_LAD = 1.37
 S_dn = 743.65
 sza = 34.58
 
-"""
-
-    References♠
-    ----------name[k]%s'%str(sharpened)
-    [Kustas1997] Kustas, W. P., and J. M. Norman (1997), A two-source approach for estimating
-    turbulent fluxes using multiple angle thermal infrared observations,
-    Water Resour. Res., 33(6), 1495-1508,
-    http://dx.doi.org/10.1029/97WR00704."""
 
 z_u = 3
 
     #u, z_u, d_0, z_0 = map(np.asarray, (u, z_u, d_0, z_0))
 k = 0.4
-    # calculate correction factors in other conditions
 
-    #u_star = u * k / (np.log((z_u - d_0) / z_0)
-ustar = MO.calc_u_star(u, z_u, d_0, z_0)  # friction velocity
-
-
-rho_a = met.calc_rho(p, ea, T_A_K)  # Air density
-c_p = met.calc_c_p(p, ea)  # Heat capacity of air
-H = Symbol('H')
-
-    # And the net longwave radiation
 emisGrd = 0.94  # Broadband emissivity of soil
 emisVeg = 0.98  # Broadband emissivity of vegetation cover
 emisSky = rad.calc_emiss_atm(ea, T_A_K)  # Atmospheric emissivity
@@ -166,19 +148,7 @@ for i in range(len(glob.glob('U:/Chapter 3/20200714/*.tif'))):
     T_C[T_C < lower1] = 0
 
     mk1 = 1 >= T_C  # canopy t is false
-# calculate the longwave radiation emitted by canopy and soil
-    Ln_C, Ln_S = rad.calc_L_n_Kustas(T_C, T_S, T_A_K, LAI, emisVeg, emisGrd,emisSky, x_LAD,)
-    Sn_C = ma.array(Zero + Sn_C)
-    Sn_C_M = ma.array(Sn_C, mask=mk1)
-    Sn_C = ma.filled(Sn_C_M,fill_value=0)
-    Rn_C = Sn_C + Ln_C
-    Rn_C[Rn_C < 0] = 0
-    #Rn = Rn_S + Rn_C
-    #G = 0.35 * Rn_S # Compute Soil Heat Flux
-    L = MO.calc_L(ustar, T_A_K, rho_a, c_p, H)  # Monin-Obukhov length
-    zoL = (h-d_0)/L  # stability coefficient
-    R_A = res.calc_R_A(z_T, u, L, d_0, z_0H,zoL,z_0M) # areodynamic resistance calculations unit s/m
-    R_S = 192.3077  # unit s/m
+
 
 
     H_S_C = []
@@ -186,7 +156,7 @@ for i in range(len(glob.glob('U:/Chapter 3/20200714/*.tif'))):
 
     f1 = []
     for tc,r in zip(T_C,R_A):
-        f = H - rho_a * c_p * (tc - T_A_K) / r 
+        
         f1.append(f)
     f2 = np.array(f1)
 #for i, m in itertools.product (range(len(T_C)),range(len(T_C[0]))):
@@ -470,53 +440,4 @@ plt.xlabel('Temperature ($^\circ$C )', fontsize=12)
 plt.ylabel('Probability Density', fontsize=12)
 plt.legend([kde5,kde6], ['T_C','T_S'],loc=0,prop={'size': 10})
 plt.savefig('T_C_S_20200714N.png', dpi=400)
-"""
-    
-#plt.style.use('classic')
-    
 
-
-    
-'''Combine tow arrays into a singe array with 
-net radiation information for soil and canopy'''
-
-''' short wave incoming radiation from Eppley spreadsheet (w/m2)'''
-
-'''Solar Zenith Angle (degrees) calculated from ♠ 
-for 9D lat: 40,28,15; Long: 86,59,41. Offset +5, Daylight saving yes
-for F54N lat: 40,28,45; Long: 86,59,24. Offset +5, Daylight saving yes '''
-
-
-'''Fraction of difuse8 shortwave radiation.
-Partitions the incoming solar radiation into PAR and non-PR and
-diffuse and direct beam component of the solar spectrum.'''   
-
-
-''' Net shortwave radiation
-Estimate net shorwave radiation for soil and canopy below a canopy using the [Campbell1998]_
-Radiative Transfer Model, and implemented in [Kustas1999]_'''
-
-# Array creation for Sn_S
-    #Sn_S = ma.array(Zero + Sn_S)
-# Mask the canopy pixels out from the above array and fill them out with 0
-    #Sn_S_M = ma.array(Sn_S, mask=~mk1)
-    #Sn_S = ma.filled(Sn_S_M,fill_value=0)
-# Net radiation for soil
-    #Rn_S = Sn_S + Ln_S
-# Negative is not possible
-    #Rn_S[Rn_S < 0] = 0
-#######################%### Net radiation for canopy#################################
-
-
-#img2 = cv2.imread('ThermalPlot10290.tif',-1)
-#pix_array2 = np.array(img2)
-    #pix_array2.resize((3300,1))
-#T_C = pix_array2*0.04
-#H = rho_a * c_p * (T_C - T_A_K) / R_A
-        # solve for H_C
-#def f(H):
-    #return H - rho_a * c_p * (T_C[1,1] - T_A_K) / R_A
-    
-#findroot(f,(100))
-#jjj = H - rho_a * c_p * (T_C[1,1] - T_A_K) / R_A
-#f = [lambda H: H - rho_a * c_p * (T_C[1,1] - T_A_K) / R_A]
